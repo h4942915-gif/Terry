@@ -238,3 +238,6 @@ create policy "images delete own" on storage.objects for delete to authenticated
 do $$ begin
   alter publication supabase_realtime add table public.posts, public.comments, public.likes, public.invite_requests;
 exception when duplicate_object then null; end $$;
+
+-- 讓 API 立刻認得新的資料表和函式
+notify pgrst, 'reload schema';
