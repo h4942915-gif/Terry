@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>蘑菇雷達</title>
+<meta name="description" content="Pikmin Bloom 玩家回報的全球蘑菇地圖：找到附近或世界各地正在進行的蘑菇，加好友一起打。">
+<meta name="theme-color" content="#3f8f3a">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect x='16' y='20' width='8' height='14' rx='3' fill='%23f7efe0' stroke='%236b5a43'/%3E%3Cpath d='M4 22 C4 8 36 8 36 22 Z' fill='%23e5483b' stroke='%233b2f22'/%3E%3Ccircle cx='13' cy='16' r='2.4' fill='%23fff'/%3E%3Ccircle cx='27' cy='15' r='2.2' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="16" y="20" width="8" height="14" rx="3" fill="#f7efe0" stroke="#6b5a43"/><path d="M4 22 C4 8 36 8 36 22 Z" fill="#e5483b" stroke="#3b2f22" stroke-width="1.2"/><circle cx="13" cy="16" r="2.4" fill="#fff"/><circle cx="22" cy="12.5" r="2" fill="#fff"/><circle cx="28" cy="17" r="2.2" fill="#fff"/></svg>
+      <div><h1>蘑菇雷達</h1><small>Pikmin Bloom 玩家回報的全球蘑菇地圖</small></div>
+    </div>
+    <div class="phase" aria-label="開發進度"><span class="on">① 蘑菇地圖</span><span>② 好友碼交換（規劃中）</span><span>③ 組隊匹配（規劃中）</span></div>
+    <button class="btn" id="reportBtn" type="button">＋ 回報蘑菇</button>
+  </header>
+  <div class="banner" id="demoBanner" hidden>示範模式：尚未連接線上資料庫，回報只會存在這台裝置的瀏覽器。</div>
+
+  <main>
+    <div class="mapbox" id="mapbox">
+      <div id="map" aria-label="蘑菇地圖"></div>
+      <div class="pickbar" id="pickbar" hidden>在地圖上點一下蘑菇的位置 <button type="button" id="pickCancel">取消</button></div>
+      <div class="maptip"><span id="status">載入中…</span></div>
+    </div>
+
+    <aside>
+      <div class="filters">
+        <div class="row"><input id="q" type="search" placeholder="搜尋國家、城市或地點" aria-label="搜尋"><select id="sort" aria-label="排序"><option value="soon">快結束優先</option><option value="new">最新回報</option><option value="pop">最多人想打</option></select></div>
+        <div class="row" id="typeFilter" aria-label="蘑菇屬性篩選"></div>
+        <label class="inview"><input type="checkbox" id="inView"> 只看地圖範圍內</label>
+        <div class="count" id="count"></div>
+      </div>
+      <div id="list"></div>
+      <div class="note">資料全部由玩家手動回報，本站不連接遊戲帳號、不修改定位。想加入時，請加回報者的好友碼，由對方在遊戲內邀請你。本站與 Niantic、任天堂無關。</div>
+    </aside>
+  </main>
+</div>
+
+<dialog id="dlg">
+  <form class="rep" id="repForm">
+    <h2>回報一朵蘑菇</h2>
+    <div class="field"><span>屬性</span><div class="types" id="typePick"></div></div>
+    <div class="two">
+      <label class="field"><span>大小</span><select id="fSize"></select></label>
+      <div class="field"><span>剩餘時間</span><div class="time"><input id="fH" type="number" min="0" max="72" value="2" aria-label="小時">時<input id="fM" type="number" min="0" max="59" value="0" aria-label="分鐘">分</div></div>
+    </div>
+    <div class="field"><span>位置</span>
+      <div class="loc"><button type="button" class="btn ghost" id="pickBtn">在地圖上點選</button><span id="locText" class="meta">尚未選擇</span></div>
+    </div>
+    <label class="field"><span>地點名稱</span><input id="fPlace" maxlength="60" placeholder="例如：台北車站東三門"></label>
+    <label class="field"><span>你的好友碼（12 碼，讓想打的人加你）</span><input id="fCode" inputmode="numeric" maxlength="14" placeholder="1234 5678 9012"></label>
+    <label class="field"><span>備註（選填）</span><input id="fNote" maxlength="80" placeholder="例如：還差 3 人、晚上 9 點前開打"></label>
+    <div class="err" id="fErr" role="alert"></div>
+    <div class="formacts"><button type="button" class="btn ghost" id="cancelBtn">取消</button><button type="submit" class="btn" id="saveBtn">送出回報</button></div>
+  </form>
+</dialog>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.79.0/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="store.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
