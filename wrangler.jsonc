@@ -1,0 +1,9 @@
+// Cloudflare Workers 部署設定：把整個資料夾當成靜態網站上傳。
+{
+  "name": "pikmin-friends",
+  "compatibility_date": "2025-10-01",
+  "assets": {
+    "directory": "./",
+    "not_found_handling": "single-page-application"
+  }
+}
