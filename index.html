@@ -3,65 +3,155 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>蘑菇雷達</title>
-<meta name="description" content="Pikmin Bloom 玩家回報的全球蘑菇地圖：找到附近或世界各地正在進行的蘑菇，加好友一起打。">
+<title>皮克敏好友圈</title>
+<meta name="description" content="Pikmin Bloom 玩家社群：在地區討論版聊附近的花點與蘑菇、交換好友碼、請在地玩家邀請你一起打蘑菇。">
 <meta name="theme-color" content="#3f8f3a">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect x='16' y='20' width='8' height='14' rx='3' fill='%23f7efe0' stroke='%236b5a43'/%3E%3Cpath d='M4 22 C4 8 36 8 36 22 Z' fill='%23e5483b' stroke='%233b2f22'/%3E%3Ccircle cx='13' cy='16' r='2.4' fill='%23fff'/%3E%3Ccircle cx='27' cy='15' r='2.2' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M20 34 C20 26 20 20 20 16' stroke='%233f8f3a' stroke-width='3' fill='none'/%3E%3Cpath d='M20 18 C12 18 10 10 14 6 C18 8 20 12 20 18 Z' fill='%237cc46f'/%3E%3Ccircle cx='20' cy='12' r='6' fill='%23f2c230'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#feed">
+      <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 36 V16" stroke="#3f8f3a" stroke-width="3"/><path d="M20 20 C11 20 9 11 13 6 C18 8 20 13 20 20 Z" fill="#7cc46f"/><circle cx="20" cy="12" r="6.5" fill="#f2c230" stroke="#b68a12"/></svg>
+      <span><b>皮克敏好友圈</b><small>Pikmin Bloom 玩家社群</small></span>
+    </a>
+    <nav class="tabs" aria-label="主要分頁">
+      <a href="#feed" data-tab="feed">附近動態</a>
+      <a href="#map" data-tab="map">蘑菇地圖</a>
+      <a href="#friends" data-tab="friends">好友碼</a>
+      <a href="#me" data-tab="me">我的<span class="badge" id="meBadge" hidden></span></a>
+    </nav>
+  </div>
+</header>
+
 <div class="wrap">
-  <header>
-    <div class="brand">
-      <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="16" y="20" width="8" height="14" rx="3" fill="#f7efe0" stroke="#6b5a43"/><path d="M4 22 C4 8 36 8 36 22 Z" fill="#e5483b" stroke="#3b2f22" stroke-width="1.2"/><circle cx="13" cy="16" r="2.4" fill="#fff"/><circle cx="22" cy="12.5" r="2" fill="#fff"/><circle cx="28" cy="17" r="2.2" fill="#fff"/></svg>
-      <div><h1>蘑菇雷達</h1><small>Pikmin Bloom 玩家回報的全球蘑菇地圖</small></div>
-    </div>
-    <div class="phase" aria-label="開發進度"><span class="on">① 蘑菇地圖</span><span>② 好友碼交換（規劃中）</span><span>③ 組隊匹配（規劃中）</span></div>
-    <button class="btn" id="reportBtn" type="button">＋ 回報蘑菇</button>
-  </header>
-  <div class="banner" id="demoBanner" hidden>示範模式：尚未連接線上資料庫，回報只會存在這台裝置的瀏覽器。</div>
+  <div class="banner" id="demoBanner" hidden>示範模式：網站還沒接上線上資料庫，你發的內容只會存在這台裝置。</div>
 
-  <main>
-    <div class="mapbox" id="mapbox">
-      <div id="map" aria-label="蘑菇地圖"></div>
-      <div class="pickbar" id="pickbar" hidden>在地圖上點一下蘑菇的位置 <button type="button" id="pickCancel">取消</button></div>
-      <div class="maptip"><span id="status">載入中…</span></div>
-    </div>
+  <div class="regionbar">
+    <label for="regionSel">地區</label>
+    <select id="regionSel"></select>
+    <span class="hint" id="regionHint"></span>
+  </div>
 
-    <aside>
-      <div class="filters">
-        <div class="row"><input id="q" type="search" placeholder="搜尋國家、城市或地點" aria-label="搜尋"><select id="sort" aria-label="排序"><option value="soon">快結束優先</option><option value="new">最新回報</option><option value="pop">最多人想打</option></select></div>
-        <div class="row" id="typeFilter" aria-label="蘑菇屬性篩選"></div>
-        <label class="inview"><input type="checkbox" id="inView"> 只看地圖範圍內</label>
-        <div class="count" id="count"></div>
+  <!-- 附近動態 -->
+  <section id="view-feed" class="view">
+    <div class="feedhead">
+      <div class="kinds" id="kindFilter" role="group" aria-label="貼文類型">
+        <button type="button" data-kind="" aria-pressed="true">全部</button>
+        <button type="button" data-kind="talk" aria-pressed="false">💬 討論</button>
+        <button type="button" data-kind="mushroom" aria-pressed="false">🍄 蘑菇</button>
+        <button type="button" data-kind="spot" aria-pressed="false">🌸 花點</button>
       </div>
-      <div id="list"></div>
-      <div class="note">資料全部由玩家手動回報，本站不連接遊戲帳號、不修改定位。想加入時，請加回報者的好友碼，由對方在遊戲內邀請你。本站與 Niantic、任天堂無關。</div>
-    </aside>
-  </main>
+      <button class="btn" type="button" id="newPostBtn">＋ 發文</button>
+    </div>
+    <div id="feed" class="feed"></div>
+  </section>
+
+  <!-- 蘑菇地圖 -->
+  <section id="view-map" class="view" hidden>
+    <div class="mapbox"><div id="map" aria-label="蘑菇與花點地圖"></div></div>
+    <p class="hint">地圖上是玩家分享、還沒結束的蘑菇 🍄 和花點 🌸。點一下就能看貼文、請在地玩家邀請你。</p>
+  </section>
+
+  <!-- 好友碼 -->
+  <section id="view-friends" class="view" hidden>
+    <div class="feedhead">
+      <div class="kinds" id="lookFilter" role="group" aria-label="想找什麼">
+        <button type="button" data-look="" aria-pressed="true">全部</button>
+        <button type="button" data-look="friends" aria-pressed="false">交朋友</button>
+        <button type="button" data-look="mushroom" aria-pressed="false">一起打蘑菇</button>
+        <button type="button" data-look="postcards" aria-pressed="false">交換明信片</button>
+      </div>
+    </div>
+    <div id="friendList" class="grid"></div>
+  </section>
+
+  <!-- 我的 -->
+  <section id="view-me" class="view" hidden>
+    <div class="cols">
+      <form class="panel" id="profileForm">
+        <h2>我的玩家檔案</h2>
+        <label class="field"><span>暱稱</span><input id="pNick" maxlength="24" required placeholder="遊戲裡的名字或暱稱"></label>
+        <label class="field"><span>好友碼（12 碼）</span><input id="pCode" inputmode="numeric" maxlength="14" placeholder="1234 5678 9012"></label>
+        <div class="two">
+          <label class="field"><span>國家</span><input id="pCountry" maxlength="40" placeholder="臺灣" list="countryList"></label>
+          <label class="field"><span>城市／地區</span><input id="pCity" maxlength="40" placeholder="臺北市"></label>
+        </div>
+        <label class="field"><span>自我介紹</span><textarea id="pBio" maxlength="200" rows="3" placeholder="例如：每天晚上在大安森林公園散步，歡迎一起打蘑菇"></textarea></label>
+        <fieldset class="field"><legend>我想找</legend>
+          <div class="checks">
+            <label><input type="checkbox" value="friends"> 交朋友</label>
+            <label><input type="checkbox" value="mushroom"> 一起打蘑菇</label>
+            <label><input type="checkbox" value="postcards"> 交換明信片</label>
+          </div>
+        </fieldset>
+        <label class="check"><input type="checkbox" id="pShare" checked> 把我的好友碼放到「好友碼」頁，讓其他玩家加我</label>
+        <div class="err" id="pErr" role="alert"></div>
+        <div class="formacts"><button class="btn" type="submit">儲存</button></div>
+      </form>
+      <div class="panel">
+        <h2>邀請請求</h2>
+        <p class="hint">別人在你分享的蘑菇上按「請邀請我」時會出現在這裡。到遊戲裡加對方好友，再從蘑菇畫面邀請他，然後按「已邀請」。</p>
+        <div id="inviteList"></div>
+        <h2 style="margin-top:18px">我請別人邀請的</h2>
+        <div id="myRequests"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="note">所有內容都由玩家分享。本站不會連接、建立或操作任何遊戲帳號，也不會修改定位。本站與 Niantic、任天堂無關。</footer>
 </div>
 
-<dialog id="dlg">
-  <form class="rep" id="repForm">
-    <h2>回報一朵蘑菇</h2>
-    <div class="field"><span>屬性</span><div class="types" id="typePick"></div></div>
+<datalist id="countryList"><option value="臺灣"><option value="日本"><option value="香港"><option value="韓國"><option value="美國"><option value="馬來西亞"><option value="新加坡"><option value="泰國"><option value="英國"><option value="德國"></datalist>
+
+<!-- 發文 -->
+<dialog id="postDlg">
+  <form class="rep" id="postForm">
+    <h2>發一則貼文</h2>
+    <div class="kinds" id="postKind" role="radiogroup" aria-label="貼文類型">
+      <label><input type="radio" name="kind" value="talk" checked> 💬 討論</label>
+      <label><input type="radio" name="kind" value="mushroom"> 🍄 蘑菇</label>
+      <label><input type="radio" name="kind" value="spot"> 🌸 花點</label>
+    </div>
+    <div id="mushFields" class="mush" hidden>
+      <div class="field"><span>屬性</span><div class="types" id="typePick"></div></div>
+      <div class="two">
+        <label class="field"><span>大小</span><select id="fSize"></select></label>
+        <div class="field"><span>剩餘時間</span><div class="time"><input id="fH" type="number" min="0" max="72" value="2" aria-label="小時">時<input id="fM" type="number" min="0" max="59" value="0" aria-label="分鐘">分</div></div>
+      </div>
+    </div>
+    <label class="field"><span id="bodyLabel">想說什麼？</span><textarea id="fBody" maxlength="1000" rows="4" required placeholder="例如：信義區最近哪裡花比較多？"></textarea></label>
+    <div class="field"><span>截圖或照片（選填）</span>
+      <input type="file" id="fImg" accept="image/*">
+      <img id="imgPreview" alt="" hidden>
+    </div>
+    <div class="field" id="locField"><span id="locLabel">位置（選填，點地圖標出來）</span>
+      <div id="pickMap" class="pickmap"></div>
+      <span class="hint" id="locText">尚未標記</span>
+    </div>
     <div class="two">
-      <label class="field"><span>大小</span><select id="fSize"></select></label>
-      <div class="field"><span>剩餘時間</span><div class="time"><input id="fH" type="number" min="0" max="72" value="2" aria-label="小時">時<input id="fM" type="number" min="0" max="59" value="0" aria-label="分鐘">分</div></div>
+      <label class="field"><span>國家</span><input id="fCountry" maxlength="40" list="countryList"></label>
+      <label class="field"><span>城市／地區</span><input id="fCity" maxlength="40"></label>
     </div>
-    <div class="field"><span>位置</span>
-      <div class="loc"><button type="button" class="btn ghost" id="pickBtn">在地圖上點選</button><span id="locText" class="meta">尚未選擇</span></div>
-    </div>
-    <label class="field"><span>地點名稱</span><input id="fPlace" maxlength="60" placeholder="例如：台北車站東三門"></label>
-    <label class="field"><span>你的好友碼（12 碼，讓想打的人加你）</span><input id="fCode" inputmode="numeric" maxlength="14" placeholder="1234 5678 9012"></label>
-    <label class="field"><span>備註（選填）</span><input id="fNote" maxlength="80" placeholder="例如：還差 3 人、晚上 9 點前開打"></label>
     <div class="err" id="fErr" role="alert"></div>
-    <div class="formacts"><button type="button" class="btn ghost" id="cancelBtn">取消</button><button type="submit" class="btn" id="saveBtn">送出回報</button></div>
+    <div class="formacts"><button type="button" class="btn ghost" id="postCancel">取消</button><button type="submit" class="btn" id="postSave">發佈</button></div>
   </form>
 </dialog>
+
+<!-- 檢舉 -->
+<dialog id="reportDlg">
+  <form class="rep" id="reportForm">
+    <h2>檢舉這則內容</h2>
+    <label class="field"><span>原因</span>
+      <select id="rReason"><option>廣告或洗版</option><option>騷擾或不友善</option><option>販賣帳號或代練</option><option>假的蘑菇資訊</option><option>其他</option></select></label>
+    <div class="formacts"><button type="button" class="btn ghost" id="reportCancel">取消</button><button type="submit" class="btn">送出</button></div>
+  </form>
+</dialog>
+
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

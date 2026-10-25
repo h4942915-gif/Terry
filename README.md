@@ -1,19 +1,22 @@
-# 蘑菇雷達
+# 皮克敏好友圈
 
-給全球 Pikmin Bloom 玩家用的免費蘑菇地圖：玩家回報看到的蘑菇（屬性、大小、剩餘時間、位置），其他人可以瀏覽、篩選，按「我想打」，再加回報者好友碼，由對方在遊戲內邀請。
+給全球 Pikmin Bloom 玩家的免費社群網站：
 
-本站只收玩家手動回報的資料，不連接遊戲帳號、不修改 GPS 定位。本站與 Niantic、任天堂無關。
+- **附近動態**：依國家／城市分的討論版，可發討論、蘑菇、花點貼文（可附截圖、標地圖位置），留言和按讚
+- **蘑菇地圖**：玩家分享、還沒結束的蘑菇與花點
+- **好友碼**：公開自己的好友碼與想找的東西（交朋友、一起打蘑菇、交換明信片）
+- **請在地玩家邀請我**：在蘑菇貼文上按「請邀請我」，分享的玩家加你好友碼後從遊戲內邀請你
 
-## 開發階段
+所有內容都由玩家分享。本站不會連接、建立或操作任何遊戲帳號，也不會修改定位。本站與 Niantic、任天堂無關。
 
-1. **蘑菇地圖**（目前）
-2. 好友碼交換：`profiles.share_code` / `friend_code` 已預留
-3. 組隊匹配：`parties` / `party_members` 已預留
+之後：組隊匹配（`parties` / `party_members` 已預留）。
 
 ## 技術
 
 - 純靜態網站（不需要建置）：`index.html`、`style.css`、`app.js`、`store.js`、`config.js`
 - 地圖：Leaflet + OpenStreetMap 圖磚；點地圖時用 Nominatim 查地名
+- 圖片：上傳前在瀏覽器縮到 1280px JPEG，存在 Supabase Storage（`post-images`）
+- 防濫用：發文／留言頻率限制、檢舉滿 3 次自動隱藏
 - 資料庫：Supabase（Postgres + 匿名登入 + 即時更新）。`config.js` 留空時是「示範模式」，資料只存在瀏覽器
 - 主機：GitHub Pages（免費）
 
@@ -24,7 +27,6 @@
    - SQL Editor → 貼上 `supabase/schema.sql` 全部內容 → Run
    - Project Settings → API → 複製 Project URL 與 anon / publishable key，填進 `config.js`
 2. **GitHub Pages**：repo 的 Settings → Pages → Source 選 `Deploy from a branch`，Branch 選 `main`、資料夾 `/ (root)`。
-3. （選用）Supabase → Integrations → Cron，每小時執行 `select public.cleanup_old_mushrooms();` 清掉過期資料。
 
 ## 本機預覽
 

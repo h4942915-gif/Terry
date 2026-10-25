@@ -1,119 +1,202 @@
-// 資料層：有 Supabase 設定就用線上資料庫，否則用瀏覽器 localStorage 的示範模式。
-// 兩種 store 提供相同的介面，app.js 不需要知道背後是哪一種。
+// 資料層：有 Supabase 設定就用線上資料庫，否則用瀏覽器 localStorage 的「示範模式」。
+// 兩種 store 介面相同，app.js 不需要知道背後是哪一種。
 //
-// Mushroom 物件（app 內部使用的格式）：
-// { id, type, size, lat, lng, country, place, note, friendCode, endsAt(ms), createdAt(ms),
-//   status, reporterId, joiners: Set<userId> }
+// Profile { id, nickname, friendCode, country, city, bio, lookingFor[], shareCode }
+// Post    { id, authorId, kind('talk'|'mushroom'|'spot'), body, country, city, lat, lng, imageUrl,
+//           mushroomType, mushroomSize, endsAt(ms|null), status, createdAt(ms), likes:Set, commentCount }
+// Comment { id, postId, authorId, body, createdAt(ms) }
 
 (function () {
-  const HISTORY_MS = 6 * 3600e3; // 只抓結束不到 6 小時的蘑菇
+  const POST_WINDOW_DAYS = 30;
 
-  function fromRow(r, joins) {
-    return {
-      id: r.id, type: r.type, size: r.size, lat: r.lat, lng: r.lng,
-      country: r.country || "", place: r.place || "", note: r.note || "",
-      friendCode: r.friend_code || "", endsAt: Date.parse(r.ends_at), createdAt: Date.parse(r.created_at),
-      status: r.status, reporterId: r.reporter_id, joiners: joins || new Set()
-    };
+  function Emitter() {
+    const fns = [];
+    return { on: f => fns.push(f), emit: (...a) => fns.forEach(f => f(...a)) };
   }
 
+  /* ======================= Supabase ======================= */
   function SupabaseStore(cfg) {
     const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-    const mushrooms = new Map();
-    let me = null, listeners = [];
-    const emit = () => listeners.forEach(fn => fn([...mushrooms.values()]));
-
-    async function ensureUser() {
-      const { data } = await sb.auth.getSession();
-      if (data.session) { me = data.session.user.id; return me; }
-      const { data: d, error } = await sb.auth.signInAnonymously();
-      if (error) throw error;
-      me = d.user.id; return me;
+    const ev = Emitter();
+    const posts = new Map(), profiles = new Map();
+    let me = null, invites = [];
+    const toInvite = r => ({ postId: r.post_id, userId: r.user_id, friendCode: r.friend_code, status: r.status, createdAt: Date.parse(r.created_at) });
+    async function loadInvites() {
+      const { data, error } = await sb.from("invite_requests").select("*").order("created_at").limit(1000); fail(error);
+      invites = data.map(toInvite); await loadProfiles(invites.map(i => i.userId));
     }
 
-    async function loadAll() {
-      const since = new Date(Date.now() - HISTORY_MS).toISOString();
-      const { data: rows, error } = await sb.from("mushrooms").select("*").gt("ends_at", since).order("ends_at").limit(2000);
-      if (error) throw error;
-      const ids = rows.map(r => r.id);
-      const joins = new Map(ids.map(id => [id, new Set()]));
-      for (let i = 0; i < ids.length; i += 200) {
-        const { data: js, error: e2 } = await sb.from("mushroom_joins").select("mushroom_id,user_id").in("mushroom_id", ids.slice(i, i + 200));
-        if (e2) throw e2;
-        js.forEach(j => joins.get(j.mushroom_id)?.add(j.user_id));
+    const toProfile = r => ({ id: r.id, nickname: r.nickname, friendCode: r.friend_code || "", country: r.country || "", city: r.city || "",
+      bio: r.bio || "", lookingFor: r.looking_for || [], shareCode: !!r.share_code });
+    const imgUrl = p => p ? sb.storage.from("post-images").getPublicUrl(p).data.publicUrl : "";
+    const toPost = (r, prev) => ({ id: r.id, authorId: r.author_id, kind: r.kind, body: r.body, country: r.country || "", city: r.city || "",
+      lat: r.lat, lng: r.lng, imageUrl: imgUrl(r.image_path), imagePath: r.image_path, mushroomType: r.mushroom_type, mushroomSize: r.mushroom_size,
+      endsAt: r.ends_at ? Date.parse(r.ends_at) : null, status: r.status, createdAt: Date.parse(r.created_at),
+      likes: prev?.likes || new Set(), commentCount: prev?.commentCount || 0 });
+    const toComment = r => ({ id: r.id, postId: r.post_id, authorId: r.author_id, body: r.body, createdAt: Date.parse(r.created_at) });
+    const fail = (error) => { if (error) throw new Error(error.message || "操作失敗"); };
+
+    async function loadProfiles(ids) {
+      const need = [...new Set(ids)].filter(id => id && !profiles.has(id));
+      for (let i = 0; i < need.length; i += 100) {
+        const { data, error } = await sb.from("profiles_public").select("*").in("id", need.slice(i, i + 100)); fail(error);
+        data.forEach(r => profiles.set(r.id, toProfile(r)));
       }
-      mushrooms.clear();
-      rows.forEach(r => mushrooms.set(r.id, fromRow(r, joins.get(r.id))));
-      emit();
     }
 
-    function subscribeRealtime() {
-      sb.channel("radar")
-        .on("postgres_changes", { event: "*", schema: "public", table: "mushrooms" }, p => {
-          if (p.eventType === "DELETE") mushrooms.delete(p.old.id);
-          else mushrooms.set(p.new.id, fromRow(p.new, mushrooms.get(p.new.id)?.joiners));
-          emit();
+    async function loadPosts() {
+      const since = new Date(Date.now() - POST_WINDOW_DAYS * 864e5).toISOString();
+      const { data, error } = await sb.from("posts").select("*").gt("created_at", since).neq("status", "hidden").order("created_at", { ascending: false }).limit(500);
+      fail(error);
+      posts.clear(); data.forEach(r => posts.set(r.id, toPost(r)));
+      const ids = [...posts.keys()];
+      for (let i = 0; i < ids.length; i += 150) {
+        const chunk = ids.slice(i, i + 150);
+        const [{ data: ls, error: e1 }, { data: cs, error: e2 }] = await Promise.all([
+          sb.from("likes").select("post_id,user_id").in("post_id", chunk),
+          sb.from("comments").select("post_id").in("post_id", chunk)]);
+        fail(e1); fail(e2);
+        ls.forEach(l => posts.get(l.post_id)?.likes.add(l.user_id));
+        cs.forEach(c => { const p = posts.get(c.post_id); if (p) p.commentCount++; });
+      }
+      await loadProfiles(data.map(r => r.author_id));
+      await loadInvites();
+      ev.emit();
+    }
+
+    function realtime() {
+      sb.channel("community")
+        .on("postgres_changes", { event: "*", schema: "public", table: "posts" }, async p => {
+          if (p.eventType === "DELETE" || p.new.status === "hidden") posts.delete((p.old || p.new).id);
+          else { posts.set(p.new.id, toPost(p.new, posts.get(p.new.id))); await loadProfiles([p.new.author_id]); }
+          ev.emit();
         })
-        .on("postgres_changes", { event: "*", schema: "public", table: "mushroom_joins" }, p => {
-          const r = p.eventType === "DELETE" ? p.old : p.new;
-          const m = mushrooms.get(r.mushroom_id); if (!m) return;
-          // DELETE 事件預設只帶主鍵，剛好包含 mushroom_id 與 user_id
-          p.eventType === "DELETE" ? m.joiners.delete(r.user_id) : m.joiners.add(r.user_id);
-          emit();
+        .on("postgres_changes", { event: "*", schema: "public", table: "likes" }, p => {
+          const r = p.eventType === "DELETE" ? p.old : p.new, post = posts.get(r.post_id); if (!post) return;
+          p.eventType === "DELETE" ? post.likes.delete(r.user_id) : post.likes.add(r.user_id); ev.emit();
         })
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "comments" }, async p => {
+          const post = posts.get(p.new.post_id); if (post) post.commentCount++;
+          await loadProfiles([p.new.author_id]); ev.emit(p.new.post_id);
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "invite_requests" }, async () => { await loadInvites(); ev.emit(); })
         .subscribe();
     }
 
     return {
       mode: "online",
-      async start() { await ensureUser(); await loadAll(); subscribeRealtime(); setInterval(() => loadAll().catch(() => {}), 5 * 60e3); return me; },
-      onChange(fn) { listeners.push(fn); },
-      async add(m) {
-        const { data, error } = await sb.from("mushrooms").insert({
-          type: m.type, size: m.size, lat: m.lat, lng: m.lng, country: m.country || null, place: m.place || null,
-          note: m.note || null, friend_code: m.friendCode || null, ends_at: new Date(m.endsAt).toISOString()
-        }).select().single();
-        if (error) throw error;
-        mushrooms.set(data.id, fromRow(data)); emit(); return data.id;
+      onChange: ev.on,
+      async start() {
+        const { data } = await sb.auth.getSession();
+        if (data.session) me = data.session.user.id;
+        else { const { data: d, error } = await sb.auth.signInAnonymously(); fail(error); me = d.user.id; }
+        await loadProfiles([me]);
+        await loadPosts(); realtime();
+        setInterval(() => loadPosts().catch(() => {}), 10 * 60e3);
+        return me;
       },
-      async toggleJoin(id) {
-        const m = mushrooms.get(id); const on = !m.joiners.has(me);
-        const q = on ? sb.from("mushroom_joins").insert({ mushroom_id: id })
-                     : sb.from("mushroom_joins").delete().match({ mushroom_id: id, user_id: me });
-        const { error } = await q; if (error) throw error;
-        on ? m.joiners.add(me) : m.joiners.delete(me); emit(); return on;
+      me: () => me,
+      profile: id => profiles.get(id),
+      posts: () => [...posts.values()],
+      async saveProfile(p) {
+        const { error } = await sb.from("profiles").upsert({ id: me, nickname: p.nickname, friend_code: p.friendCode || null, country: p.country || null,
+          city: p.city || null, bio: p.bio || null, looking_for: p.lookingFor || [], share_code: !!p.shareCode, updated_at: new Date().toISOString() });
+        fail(error); profiles.set(me, { ...p, id: me }); ev.emit();
       },
-      async markEnded(id) {
-        const { error } = await sb.rpc("mark_mushroom_ended", { mid: id }); if (error) throw error;
-        const m = mushrooms.get(id); if (m) m.status = "ended"; emit();
+      async listFriends() {
+        const { data, error } = await sb.from("profiles_public").select("*").eq("share_code", true).not("friend_code", "is", null).order("created_at", { ascending: false }).limit(1000);
+        fail(error); data.forEach(r => profiles.set(r.id, toProfile(r))); return data.map(toProfile);
       },
-      async remove(id) {
-        const { error } = await sb.from("mushrooms").delete().eq("id", id); if (error) throw error;
-        mushrooms.delete(id); emit();
+      async createPost(p, image) {
+        let image_path = null;
+        if (image) {
+          image_path = `${me}/${crypto.randomUUID()}.jpg`;
+          const { error } = await sb.storage.from("post-images").upload(image_path, image, { contentType: "image/jpeg" }); fail(error);
+        }
+        const { data, error } = await sb.from("posts").insert({ kind: p.kind, body: p.body, country: p.country || null, city: p.city || null,
+          lat: p.lat ?? null, lng: p.lng ?? null, image_path, mushroom_type: p.mushroomType || null, mushroom_size: p.mushroomSize || null,
+          ends_at: p.endsAt ? new Date(p.endsAt).toISOString() : null }).select().single();
+        fail(error); posts.set(data.id, toPost(data)); ev.emit(); return data.id;
+      },
+      async deletePost(id) {
+        const p = posts.get(id);
+        const { error } = await sb.from("posts").delete().eq("id", id); fail(error);
+        if (p?.imagePath) sb.storage.from("post-images").remove([p.imagePath]);
+        posts.delete(id); ev.emit();
+      },
+      async markEnded(id) { const { error } = await sb.rpc("mark_mushroom_ended", { pid: id }); fail(error); const p = posts.get(id); if (p) p.status = "ended"; ev.emit(); },
+      async toggleLike(id) {
+        const p = posts.get(id), on = !p.likes.has(me);
+        const { error } = on ? await sb.from("likes").insert({ post_id: id }) : await sb.from("likes").delete().match({ post_id: id, user_id: me });
+        fail(error); on ? p.likes.add(me) : p.likes.delete(me); ev.emit(); return on;
+      },
+      async comments(postId) {
+        const { data, error } = await sb.from("comments").select("*").eq("post_id", postId).order("created_at").limit(300); fail(error);
+        await loadProfiles(data.map(c => c.author_id)); return data.map(toComment);
+      },
+      async addComment(postId, body) {
+        const { error } = await sb.from("comments").insert({ post_id: postId, body }); fail(error);
+      },
+      async deleteComment(id, postId) { const { error } = await sb.from("comments").delete().eq("id", id); fail(error); const p = posts.get(postId); if (p) p.commentCount--; ev.emit(); },
+      invites: () => invites.slice(),
+      async requestInvite(postId, friendCode) {
+        const { error } = await sb.from("invite_requests").insert({ post_id: postId, friend_code: friendCode }); fail(error);
+        await loadInvites(); ev.emit();
+      },
+      async cancelInvite(postId) {
+        const { error } = await sb.from("invite_requests").delete().match({ post_id: postId, user_id: me }); fail(error);
+        await loadInvites(); ev.emit();
+      },
+      async markInvited(postId, userId) {
+        const { error } = await sb.from("invite_requests").update({ status: "invited" }).match({ post_id: postId, user_id: userId }); fail(error);
+        await loadInvites(); ev.emit();
+      },
+      async report(type, id, reason) {
+        const { error } = await sb.from("reports").insert({ target_type: type, target_id: id, reason });
+        if (error && !/duplicate/i.test(error.message)) fail(error);
       }
     };
   }
 
+  /* ======================= 示範模式（localStorage） ======================= */
   function LocalStore() {
-    const KEY = "mushroom-radar-demo";
-    let me, listeners = [];
-    const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } };
-    const write = list => { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch {} };
-    const hydrate = list => list.map(m => ({ ...m, joiners: new Set(m.joiners || []) }));
-    const save = list => write(list.map(m => ({ ...m, joiners: [...m.joiners] })));
-    let list = [];
-    const emit = () => listeners.forEach(fn => fn(list.slice()));
+    const KEY = "pikmin-community-demo";
+    const ev = Emitter();
+    let me, db = { profiles: {}, posts: [], comments: [], invites: [] };
+    const load = () => { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d) db = { invites: [], ...d }; } catch {} };
+    const save = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} };
+    const hyd = p => ({ ...p, likes: new Set(p.likes), commentCount: db.comments.filter(c => c.postId === p.id).length });
+    const blobToData = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
+    const raw = id => db.posts.find(p => p.id === id);
     return {
       mode: "demo",
+      onChange: ev.on,
       async start() {
-        try { me = localStorage.getItem(KEY + "-me"); if (!me) { me = crypto.randomUUID(); localStorage.setItem(KEY + "-me", me); } } catch { me = "local"; }
-        list = hydrate(read()).filter(m => m.endsAt > Date.now() - HISTORY_MS); emit(); return me;
+        load();
+        try { me = localStorage.getItem(KEY + "-me") || crypto.randomUUID(); localStorage.setItem(KEY + "-me", me); } catch { me = "local-user"; }
+        return me;
       },
-      onChange(fn) { listeners.push(fn); },
-      async add(m) { const id = crypto.randomUUID(); list.push({ ...m, id, createdAt: Date.now(), status: "open", reporterId: me, joiners: new Set() }); save(list); emit(); return id; },
-      async toggleJoin(id) { const m = list.find(x => x.id === id); const on = !m.joiners.has(me); on ? m.joiners.add(me) : m.joiners.delete(me); save(list); emit(); return on; },
-      async markEnded(id) { const m = list.find(x => x.id === id); if (m) m.status = "ended"; save(list); emit(); },
-      async remove(id) { list = list.filter(x => x.id !== id); save(list); emit(); }
+      me: () => me,
+      profile: id => db.profiles[id],
+      posts: () => db.posts.filter(p => p.createdAt > Date.now() - POST_WINDOW_DAYS * 864e5).map(hyd),
+      async saveProfile(p) { db.profiles[me] = { ...p, id: me }; save(); ev.emit(); },
+      async listFriends() { return Object.values(db.profiles).filter(p => p.shareCode && p.friendCode); },
+      async createPost(p, image) {
+        const id = crypto.randomUUID();
+        db.posts.unshift({ ...p, id, authorId: me, status: "open", createdAt: Date.now(), likes: [], imageUrl: image ? await blobToData(image) : "" });
+        save(); ev.emit(); return id;
+      },
+      async deletePost(id) { db.posts = db.posts.filter(p => p.id !== id); db.comments = db.comments.filter(c => c.postId !== id); save(); ev.emit(); },
+      async markEnded(id) { raw(id).status = "ended"; save(); ev.emit(); },
+      async toggleLike(id) { const p = raw(id), i = p.likes.indexOf(me); i < 0 ? p.likes.push(me) : p.likes.splice(i, 1); save(); ev.emit(); return i < 0; },
+      async comments(postId) { return db.comments.filter(c => c.postId === postId); },
+      async addComment(postId, body) { db.comments.push({ id: crypto.randomUUID(), postId, authorId: me, body, createdAt: Date.now() }); save(); ev.emit(postId); },
+      async deleteComment(id) { db.comments = db.comments.filter(c => c.id !== id); save(); ev.emit(); },
+      invites: () => db.invites.filter(i => i.userId === me || raw(i.postId)?.authorId === me),
+      async requestInvite(postId, friendCode) { db.invites.push({ postId, userId: me, friendCode, status: "waiting", createdAt: Date.now() }); save(); ev.emit(); },
+      async cancelInvite(postId) { db.invites = db.invites.filter(i => !(i.postId === postId && i.userId === me)); save(); ev.emit(); },
+      async markInvited(postId, userId) { const i = db.invites.find(i => i.postId === postId && i.userId === userId); if (i) i.status = "invited"; save(); ev.emit(); },
+      async report() {}
     };
   }
 
