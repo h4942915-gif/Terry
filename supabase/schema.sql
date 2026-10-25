@@ -154,6 +154,19 @@ revoke select on public.profiles from anon, authenticated;
 grant select on public.profiles_public to anon, authenticated;
 grant select (id, nickname, country, city, bio, looking_for, share_code, created_at, updated_at) on public.profiles to anon, authenticated;
 
+-- 儲存自己的檔案：因為上面把 profiles 的直接讀取權拿掉了，改用這個函式新增或更新
+create or replace function public.save_profile(p_nickname text, p_friend_code text, p_country text, p_city text,
+  p_bio text, p_looking_for text[], p_share_code boolean) returns void
+language sql security definer set search_path = public as $$
+  insert into public.profiles (id, nickname, friend_code, country, city, bio, looking_for, share_code, updated_at)
+  values (auth.uid(), p_nickname, nullif(p_friend_code, ''), nullif(p_country, ''), nullif(p_city, ''), nullif(p_bio, ''),
+          coalesce(p_looking_for, '{}'), coalesce(p_share_code, true), now())
+  on conflict (id) do update set nickname = excluded.nickname, friend_code = excluded.friend_code, country = excluded.country,
+    city = excluded.city, bio = excluded.bio, looking_for = excluded.looking_for, share_code = excluded.share_code, updated_at = now();
+$$;
+revoke all on function public.save_profile(text, text, text, text, text, text[], boolean) from public, anon;
+grant execute on function public.save_profile(text, text, text, text, text, text[], boolean) to authenticated;
+
 drop policy if exists "posts read" on public.posts;
 create policy "posts read" on public.posts for select using (status <> 'hidden' or author_id = auth.uid());
 drop policy if exists "posts insert" on public.posts;

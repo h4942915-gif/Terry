@@ -99,8 +99,8 @@
       profile: id => profiles.get(id),
       posts: () => [...posts.values()],
       async saveProfile(p) {
-        const { error } = await sb.from("profiles").upsert({ id: me, nickname: p.nickname, friend_code: p.friendCode || null, country: p.country || null,
-          city: p.city || null, bio: p.bio || null, looking_for: p.lookingFor || [], share_code: !!p.shareCode, updated_at: new Date().toISOString() });
+        const { error } = await sb.rpc("save_profile", { p_nickname: p.nickname, p_friend_code: p.friendCode || "", p_country: p.country || "",
+          p_city: p.city || "", p_bio: p.bio || "", p_looking_for: p.lookingFor || [], p_share_code: !!p.shareCode });
         fail(error); profiles.set(me, { ...p, id: me }); ev.emit();
       },
       async listFriends() {
