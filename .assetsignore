@@ -3,3 +3,7 @@
 wrangler.jsonc
 README.md
 supabase
+.wrangler
+node_modules
+docs
+.nojekyll
