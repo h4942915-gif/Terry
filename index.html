@@ -109,7 +109,7 @@
         <label class="field"><span>暱稱</span><input id="pNick" maxlength="24" required placeholder="遊戲裡的名字或暱稱"></label>
         <label class="field"><span>好友碼（12 碼）</span><input id="pCode" inputmode="numeric" maxlength="14" placeholder="1234 5678 9012"></label>
         <div class="two">
-          <label class="field"><span>國家</span><input id="pCountry" maxlength="40" placeholder="臺灣" list="countryList"></label>
+          <label class="field"><span>國家／地區</span><select id="pCountry" class="country"></select></label>
           <label class="field"><span>城市／地區</span><input id="pCity" maxlength="40" placeholder="臺北市"></label>
         </div>
         <label class="field"><span>自我介紹</span><textarea id="pBio" maxlength="200" rows="3" placeholder="例如：每天晚上在大安森林公園散步，歡迎一起打蘑菇"></textarea></label>
@@ -137,7 +137,6 @@
   <footer class="note">所有內容都由玩家分享。本站不會連接、建立或操作任何遊戲帳號，也不會修改定位。本站與 Niantic、任天堂無關。</footer>
 </div>
 
-<datalist id="countryList"><option value="臺灣"><option value="日本"><option value="香港"><option value="韓國"><option value="美國"><option value="馬來西亞"><option value="新加坡"><option value="泰國"><option value="英國"><option value="德國"></datalist>
 
 <!-- 發文 -->
 <dialog id="postDlg">
@@ -165,7 +164,7 @@
       <span class="hint" id="locText">尚未標記</span>
     </div>
     <div class="two">
-      <label class="field"><span>國家</span><input id="fCountry" maxlength="40" list="countryList"></label>
+      <label class="field"><span>國家／地區</span><select id="fCountry" class="country"></select></label>
       <label class="field"><span>城市／地區</span><input id="fCity" maxlength="40"></label>
     </div>
     <div class="err" id="fErr" role="alert"></div>
@@ -188,6 +187,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.79.0/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="countries.js"></script>
 <script src="store.js"></script>
 <script src="app.js"></script>
 </body>

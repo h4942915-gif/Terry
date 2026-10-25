@@ -21,6 +21,19 @@
   const avatar = (id, name) => `<span class="avatar" style="background:${avColor(id)}" aria-hidden="true">${esc((name || "?").slice(0, 1))}</span>`;
   const isLive = p => p.kind === "mushroom" && p.status === "open" && p.endsAt > Date.now();
 
+  /* ---------- 國家清單（當地正式名稱） ---------- */
+  const COUNTRIES = window.COUNTRIES || [];
+  const byCode = Object.fromEntries(COUNTRIES.map(c => [c.c, c]));
+  const byName = Object.fromEntries(COUNTRIES.map(c => [c.n, c]));
+  const myCC = (navigator.language.split("-")[1] || "").toUpperCase();
+  function countryOptions(sel) {
+    const label = c => c.n === c.en ? c.n : `${c.n} (${c.en})`;
+    const top = byCode[myCC] ? `<option value="${esc(byCode[myCC].n)}">${esc(label(byCode[myCC]))}</option><option disabled>──────────</option>` : "";
+    document.querySelectorAll("select.country").forEach(s => {
+      s.innerHTML = `<option value="">請選擇</option>` + top + COUNTRIES.map(c => `<option value="${esc(c.n)}">${esc(label(c))}</option>`).join("");
+    });
+  }
+
   const store = window.createStore();
   let me = null, kindOn = "", lookOn = "", openComments = new Set(), highlight = null;
   let region = ls.get("pc-region") || "";
@@ -315,12 +328,12 @@
   async function reverseGeocode(lat, lng) {
     try { const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&lat=${lat}&lon=${lng}&accept-language=zh-TW`);
       const a = (await r.json()).address || {};
-      return { country: a.country || "", city: a.city || a.town || a.county || a.village || a.state || "", road: a.road || a.neighbourhood || a.suburb || "" };
+      return { country: byCode[(a.country_code || "").toUpperCase()]?.n || a.country || "", city: a.city || a.town || a.county || a.village || a.state || "", road: a.road || a.neighbourhood || a.suburb || "" };
     } catch { return { country: "", city: "", road: "" }; }
   }
   async function geocodeRegion(country, city) {
     if (!country) return;
-    try { const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent([city, country].filter(Boolean).join(", "))}`);
+    try { const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent([city, byName[country]?.en || country].filter(Boolean).join(", "))}`);
       const j = await r.json(); if (j[0]) pickMap.setView([+j[0].lat, +j[0].lon], city ? 12 : 6);
     } catch {}
   }
@@ -359,6 +372,7 @@
   });
 
   /* ---------- 啟動 ---------- */
+  countryOptions();
   function renderAll() {
     renderRegions(); renderFeed(); renderInvites();
     if (!$("view-map").hidden) renderMap();
@@ -367,6 +381,9 @@
   setInterval(() => document.querySelectorAll(".left[data-end]").forEach(el => el.textContent = left(+el.dataset.end - Date.now())), 30000);
   if (store.mode === "demo") $("demoBanner").hidden = false;
   route();
-  store.start().then(id => { me = id; renderAll(); route(); })
+  store.start().then(id => {
+    me = id; renderAll(); route();
+    if (store.authError) { const b = $("demoBanner"); b.hidden = false; b.textContent = "目前只能瀏覽：網站的登入功能還沒開啟，所以暫時無法發文或儲存檔案。"; }
+  })
     .catch(e => { console.error(e); $("feed").innerHTML = `<div class="empty"><strong>連不上資料庫</strong>請檢查網路後重新整理頁面。</div>`; });
 })();

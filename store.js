@@ -34,6 +34,7 @@
       endsAt: r.ends_at ? Date.parse(r.ends_at) : null, status: r.status, createdAt: Date.parse(r.created_at),
       likes: prev?.likes || new Set(), commentCount: prev?.commentCount || 0 });
     const toComment = r => ({ id: r.id, postId: r.post_id, authorId: r.author_id, body: r.body, createdAt: Date.parse(r.created_at) });
+    const ensure = () => { if (!me) throw new Error("網站的登入功能還沒開啟，暫時只能瀏覽。（管理員：到 Supabase → Authentication → Sign In / Providers 開啟 Anonymous sign-ins）"); };
     const fail = (error) => { if (error) throw new Error(error.message || "操作失敗"); };
 
     async function loadProfiles(ids) {
@@ -89,8 +90,11 @@
       async start() {
         const { data } = await sb.auth.getSession();
         if (data.session) me = data.session.user.id;
-        else { const { data: d, error } = await sb.auth.signInAnonymously(); fail(error); me = d.user.id; }
-        await loadProfiles([me]);
+        else {
+          const { data: d, error } = await sb.auth.signInAnonymously();
+          if (error) { console.error(error); this.authError = error.message || "sign-in failed"; } else me = d.user.id;
+        }
+        if (me) await loadProfiles([me]);
         await loadPosts(); realtime();
         setInterval(() => loadPosts().catch(() => {}), 10 * 60e3);
         return me;
@@ -98,7 +102,7 @@
       me: () => me,
       profile: id => profiles.get(id),
       posts: () => [...posts.values()],
-      async saveProfile(p) {
+      async saveProfile(p) { ensure();
         const { error } = await sb.rpc("save_profile", { p_nickname: p.nickname, p_friend_code: p.friendCode || "", p_country: p.country || "",
           p_city: p.city || "", p_bio: p.bio || "", p_looking_for: p.lookingFor || [], p_share_code: !!p.shareCode });
         fail(error); profiles.set(me, { ...p, id: me }); ev.emit();
@@ -107,7 +111,7 @@
         const { data, error } = await sb.from("profiles_public").select("*").eq("share_code", true).not("friend_code", "is", null).order("created_at", { ascending: false }).limit(1000);
         fail(error); data.forEach(r => profiles.set(r.id, toProfile(r))); return data.map(toProfile);
       },
-      async createPost(p, image) {
+      async createPost(p, image) { ensure();
         let image_path = null;
         if (image) {
           image_path = `${me}/${crypto.randomUUID()}.jpg`;
@@ -118,14 +122,14 @@
           ends_at: p.endsAt ? new Date(p.endsAt).toISOString() : null }).select().single();
         fail(error); posts.set(data.id, toPost(data)); ev.emit(); return data.id;
       },
-      async deletePost(id) {
+      async deletePost(id) { ensure();
         const p = posts.get(id);
         const { error } = await sb.from("posts").delete().eq("id", id); fail(error);
         if (p?.imagePath) sb.storage.from("post-images").remove([p.imagePath]);
         posts.delete(id); ev.emit();
       },
-      async markEnded(id) { const { error } = await sb.rpc("mark_mushroom_ended", { pid: id }); fail(error); const p = posts.get(id); if (p) p.status = "ended"; ev.emit(); },
-      async toggleLike(id) {
+      async markEnded(id) { ensure(); const { error } = await sb.rpc("mark_mushroom_ended", { pid: id }); fail(error); const p = posts.get(id); if (p) p.status = "ended"; ev.emit(); },
+      async toggleLike(id) { ensure();
         const p = posts.get(id), on = !p.likes.has(me);
         const { error } = on ? await sb.from("likes").insert({ post_id: id }) : await sb.from("likes").delete().match({ post_id: id, user_id: me });
         fail(error); on ? p.likes.add(me) : p.likes.delete(me); ev.emit(); return on;
@@ -134,24 +138,24 @@
         const { data, error } = await sb.from("comments").select("*").eq("post_id", postId).order("created_at").limit(300); fail(error);
         await loadProfiles(data.map(c => c.author_id)); return data.map(toComment);
       },
-      async addComment(postId, body) {
+      async addComment(postId, body) { ensure();
         const { error } = await sb.from("comments").insert({ post_id: postId, body }); fail(error);
       },
-      async deleteComment(id, postId) { const { error } = await sb.from("comments").delete().eq("id", id); fail(error); const p = posts.get(postId); if (p) p.commentCount--; ev.emit(); },
+      async deleteComment(id, postId) { ensure(); const { error } = await sb.from("comments").delete().eq("id", id); fail(error); const p = posts.get(postId); if (p) p.commentCount--; ev.emit(); },
       invites: () => invites.slice(),
-      async requestInvite(postId, friendCode) {
+      async requestInvite(postId, friendCode) { ensure();
         const { error } = await sb.from("invite_requests").insert({ post_id: postId, friend_code: friendCode }); fail(error);
         await loadInvites(); ev.emit();
       },
-      async cancelInvite(postId) {
+      async cancelInvite(postId) { ensure();
         const { error } = await sb.from("invite_requests").delete().match({ post_id: postId, user_id: me }); fail(error);
         await loadInvites(); ev.emit();
       },
-      async markInvited(postId, userId) {
+      async markInvited(postId, userId) { ensure();
         const { error } = await sb.from("invite_requests").update({ status: "invited" }).match({ post_id: postId, user_id: userId }); fail(error);
         await loadInvites(); ev.emit();
       },
-      async report(type, id, reason) {
+      async report(type, id, reason) { ensure();
         const { error } = await sb.from("reports").insert({ target_type: type, target_id: id, reason });
         if (error && !/duplicate/i.test(error.message)) fail(error);
       }
