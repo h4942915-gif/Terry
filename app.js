@@ -16,6 +16,9 @@
   const ago = t => { const s = (Date.now() - t) / 1000; return s < 60 ? "剛剛" : s < 3600 ? `${Math.floor(s / 60)} 分鐘前` : s < 86400 ? `${Math.floor(s / 3600)} 小時前` : `${Math.floor(s / 86400)} 天前`; };
   const ls = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
   let tt; const toast = m => { const t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2800); };
+  const AV = ["#e5483b", "#e8a91c", "#3a7bd5", "#7b4bb7", "#6f7782", "#d9679a", "#2fa3b8", "#3f8f3a"];
+  const avColor = id => { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return AV[h % AV.length]; };
+  const avatar = (id, name) => `<span class="avatar" style="background:${avColor(id)}" aria-hidden="true">${esc((name || "?").slice(0, 1))}</span>`;
   const isLive = p => p.kind === "mushroom" && p.status === "open" && p.endsAt > Date.now();
 
   const store = window.createStore();
@@ -29,6 +32,7 @@
     views.forEach(x => { $("view-" + x).hidden = x !== v; });
     document.querySelectorAll(".tabs a").forEach(a => a.setAttribute("aria-current", a.dataset.tab === v ? "page" : "false"));
     document.querySelector(".regionbar").hidden = v === "me";
+    $("hero").hidden = v !== "feed";
     if (v === "map") { map.invalidateSize(); renderMap(); }
     if (v === "friends") renderFriends();
     if (v === "me") renderMe();
@@ -95,7 +99,7 @@
       acts.push(`<button type="button" class="act muted" data-act="report">檢舉</button>`);
     }
     return `<article class="post${highlight === p.id ? " hl" : ""}" id="post-${esc(p.id)}" data-id="${esc(p.id)}">
-      <header><span class="avatar" aria-hidden="true">${esc((a.nickname || "?").slice(0, 1))}</span>
+      <header>${avatar(p.authorId, a.nickname)}
         <div><b>${esc(a.nickname)}</b>${mine ? ' <span class="tag">我</span>' : ""}
         <div class="sub">${esc([r.country, r.city].filter(Boolean).join(" · ") || "未標地區")} · ${ago(p.createdAt)}</div></div>
         <span class="kind k-${p.kind}">${KIND[p.kind]}</span></header>
@@ -112,7 +116,7 @@
     list.sort((a, b) => (isLive(b) - isLive(a)) * (kindOn === "mushroom" ? 1 : 0) || b.createdAt - a.createdAt);
     const feed = $("feed");
     if (!list.length) {
-      feed.innerHTML = `<div class="empty"><strong>${region ? "這個地區還沒有貼文" : "還沒有人發文"}</strong>
+      feed.innerHTML = `<div class="empty"><span class="bounce" aria-hidden="true">🍄</span><strong>${region ? "這個地區還沒有貼文" : "還沒有人發文"}</strong>
         當第一個分享的人吧：附近的花點、看到的蘑菇，或是想約人一起散步都可以。<br><button class="btn" type="button" data-act="new">＋ 發文</button></div>`;
       return;
     }
@@ -217,7 +221,7 @@
     const cta = !mine?.friendCode || !mine?.shareCode
       ? `<div class="panel cta">想讓別人加你？到 <a href="#me">我的</a> 填好好友碼並勾選公開，就會出現在這裡。</div>` : "";
     box.innerHTML = cta + (list.length ? list.map(p => `<div class="friend">
-        <span class="avatar" aria-hidden="true">${esc((p.nickname || "?").slice(0, 1))}</span>
+        ${avatar(p.id, p.nickname)}
         <div class="fbody"><b>${esc(p.nickname)}</b>${p.id === me ? ' <span class="tag">我</span>' : ""}
           <div class="sub">${esc([p.country, p.city].filter(Boolean).join(" · ") || "未填地區")}</div>
           ${p.bio ? `<p>${esc(p.bio)}</p>` : ""}

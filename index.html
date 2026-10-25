@@ -20,15 +20,46 @@
       <span><b>皮克敏好友圈</b><small>Pikmin Bloom 玩家社群</small></span>
     </a>
     <nav class="tabs" aria-label="主要分頁">
-      <a href="#feed" data-tab="feed">附近動態</a>
-      <a href="#map" data-tab="map">蘑菇地圖</a>
-      <a href="#friends" data-tab="friends">好友碼</a>
-      <a href="#me" data-tab="me">我的<span class="badge" id="meBadge" hidden></span></a>
+      <a href="#feed" data-tab="feed">🌼 附近動態</a>
+      <a href="#map" data-tab="map">🍄 蘑菇地圖</a>
+      <a href="#friends" data-tab="friends">🤝 好友碼</a>
+      <a href="#me" data-tab="me">🌱 我的<span class="badge" id="meBadge" hidden></span></a>
     </nav>
   </div>
 </header>
 
 <div class="wrap">
+  <section class="hero" id="hero" aria-label="歡迎">
+    <div class="hero-text">
+      <h1>一起散步、一起開花、<br>一起打蘑菇！</h1>
+      <p>找到住在附近的皮克敏玩家，分享花點和蘑菇，交換好友碼。</p>
+      <div class="hero-cta"><button class="btn big" type="button" data-act="new">🌼 發一則貼文</button><a class="btn big alt" href="#friends">🤝 找好友</a></div>
+    </div>
+    <svg class="scene" viewBox="0 0 420 220" role="img" aria-label="五隻不同顏色的皮克敏站在草地上">
+      <defs>
+        <symbol id="pk" viewBox="-20 -70 40 80">
+          <path d="M0 -40 C 2 -52 4 -58 0 -66" stroke="#3f8f3a" stroke-width="2.5" fill="none"/>
+          <g class="bloom"><circle cx="0" cy="-66" r="5" fill="#fff"/><circle cx="-6" cy="-66" r="4.5" fill="#fff"/><circle cx="6" cy="-66" r="4.5" fill="#fff"/><circle cx="0" cy="-72" r="4.5" fill="#fff"/><circle cx="0" cy="-60" r="4.5" fill="#fff"/><circle cx="0" cy="-66" r="3.5" fill="#f2c230"/></g>
+          <ellipse cx="0" cy="-28" rx="13" ry="14" fill="currentColor"/>
+          <circle cx="-5" cy="-30" r="4" fill="#fff"/><circle cx="5" cy="-30" r="4" fill="#fff"/>
+          <circle cx="-4.4" cy="-29.5" r="2" fill="#1f2a1c"/><circle cx="5.6" cy="-29.5" r="2" fill="#1f2a1c"/>
+          <rect x="-8" y="-16" width="16" height="18" rx="7" fill="currentColor"/>
+          <rect x="-7" y="1" width="5" height="8" rx="2.5" fill="currentColor"/><rect x="2" y="1" width="5" height="8" rx="2.5" fill="currentColor"/>
+        </symbol>
+      </defs>
+      <ellipse cx="210" cy="230" rx="300" ry="70" class="hill"/>
+      <ellipse cx="60" cy="215" rx="150" ry="45" class="hill2"/>
+      <g class="flowers">
+        <text x="30" y="180">🌷</text><text x="372" y="172">🌸</text><text x="330" y="200">🌼</text><text x="96" y="204">🌼</text>
+      </g>
+      <text x="300" y="120" class="shroom">🍄</text>
+      <use href="#pk" x="70" y="100" width="48" height="96" class="p p1" style="color:#e5483b"/>
+      <use href="#pk" x="125" y="92" width="48" height="96" class="p p2" style="color:#f2c230"/>
+      <use href="#pk" x="180" y="104" width="48" height="96" class="p p3" style="color:#3a7bd5"/>
+      <use href="#pk" x="235" y="96" width="48" height="96" class="p p4" style="color:#7b4bb7"/>
+      <use href="#pk" x="290" y="106" width="48" height="96" class="p p5" style="color:#f4f1ea"/>
+    </svg>
+  </section>
   <div class="banner" id="demoBanner" hidden>示範模式：網站還沒接上線上資料庫，你發的內容只會存在這台裝置。</div>
 
   <div class="regionbar">
